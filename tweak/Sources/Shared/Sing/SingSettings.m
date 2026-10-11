@@ -149,6 +149,22 @@ UIViewController *SGSpatialVoiceSettingsPage(void) {
                        @"you; stay turned, and it comes round in front again. It follows your head through headphones that "
                        @"track it: AirPods Pro, AirPods 3 or later, AirPods Max, and asks for Motion & Fitness the first time. "
                        @"While iOS's own Spatialize Stereo is on, which already holds the whole song in place, the voice is left to it."),
+        SGNotedSection(@"Sound", @[
+            SGSliderRow(@"Distance", nil, 1, 6.5, 0.5, ^double { return SGSingSpatialDistance(); }, ^(double value) {
+                SGSetSingSpatialSound(value, SGSingSpatialRoom(), SGSingSpatialFront(), SGSingSpatialWidth());
+            }, ^NSString *(double value) { return [NSString stringWithFormat:@"%.1f m", value]; }),
+            SGSliderRow(@"Room", nil, 0, 100, 5, ^double { return SGSingSpatialRoom(); }, ^(double value) {
+                SGSetSingSpatialSound(SGSingSpatialDistance(), value, SGSingSpatialFront(), SGSingSpatialWidth());
+            }, ^NSString *(double value) { return [NSString stringWithFormat:@"%.0f%%", value]; }),
+            SGSliderRow(@"Back in front", nil, 5, 60, 1, ^double { return SGSingSpatialFront(); }, ^(double value) {
+                SGSetSingSpatialSound(SGSingSpatialDistance(), SGSingSpatialRoom(), value, SGSingSpatialWidth());
+            }, ^NSString *(double value) { return [NSString stringWithFormat:@"After %.0f s", value]; }),
+            SGSliderRow(@"Instruments width", nil, 0, 200, 5, ^double { return SGSingSpatialWidth(); }, ^(double value) {
+                SGSetSingSpatialSound(SGSingSpatialDistance(), SGSingSpatialRoom(), SGSingSpatialFront(), value);
+            }, ^NSString *(double value) { return [NSString stringWithFormat:@"%.0f%%", value]; }),
+        ], @"How far ahead the voice sings, and how much of the room you hear around it: farther, the voice is quieter and "
+           @"more of it is the room. Back in front is how long a head that stays turned takes to bring the voice ahead again. "
+           @"Instruments width spreads the rest of the song wider than the recording, or narrows it below 100%."),
     ] footer:nil];
     page = made;
     return made;
@@ -190,6 +206,8 @@ UIViewController *SGSingSettingsPage(void) {
     button.changed = ^(BOOL on) { [NSNotificationCenter.defaultCenter postNotificationName:SGSingButtonDidChangeNotification object:nil]; };
     button.visible = ^BOOL { return SGRedesignedUIStored(); };
     SGModRow *heat = SGOptionRow(@"Ignore heat warnings", @"Keeps Karaoke going on a hot iPhone, which then gets hotter", SGKeySingIgnoreHeat);
+    SGModRow *memory = SGOptionRow(@"Ignore memory warnings", @"Keeps Karaoke going when iOS is low on memory, which may then close Spotify",
+                                   SGKeySingIgnoreMemory);
     heat.changed = ^(BOOL on) { SGSetSingIgnoresHeat(on); };
     __block __weak SGModPage *page;
     SGModRow *model = SGStatActionRow(@"Voice model", nil, ^NSString *{ return modelValue(); }, ^{ modelTapped(page); });
@@ -222,7 +240,7 @@ UIViewController *SGSingSettingsPage(void) {
     SGModRow *prepare = SGSwitchRow(@"Prepare after updates",
                                     @"Readies the Neural Engine in the background after Vitrine or iOS updates, so Karaoke starts at full speed", SGKeySingPrepareAhead);
     SGSingPage *made = [[SGSingPage alloc] initWithTitle:@"Karaoke" intro:nil sections:@[
-        SGSection(nil, @[sing, button, heat, model, remove]),
+        SGSection(nil, @[sing, button, heat, memory, model, remove]),
         SGSection(nil, @[spatial]),
         SGNotedSection(@"Advanced", @[units, prepare],
                        @"Karaoke turns a song's vocals down to sing over, or the rest down to hear the vocals alone, with a voice model that "

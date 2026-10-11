@@ -38,6 +38,9 @@ extern NSNotificationName const SGSingButtonDidChangeNotification;
 #define SGKeySingLevel @"spotifyglass.sing.level"
 // Keeps the model running on a hot iPhone, which otherwise lets it go from the thermal state Serious up.
 #define SGKeySingIgnoreHeat @"spotifyglass.sing.ignoreHeat"
+// Keeps the model through iOS's memory warnings, which otherwise let it go and stop Karaoke until the next song.
+// Off until switched on: with it on, iOS may close Spotify instead.
+#define SGKeySingIgnoreMemory @"spotifyglass.sing.ignoreMemory"
 // Where the model runs: an index into SGSingComputeUnitNames(), Automatic (0: a Neural Engine copy beside the CPU's,
 // where the iPhone has a Neural Engine) unless CPU only (1) is chosen. The GPU, Neural Engine and GPU and Neural Engine
 // stored before (2-4), and the earlier key's every value, are Automatic now, carried over at launch.
@@ -49,6 +52,13 @@ extern NSNotificationName const SGSingButtonDidChangeNotification;
 // Spatial voice: through headphones that track the head, the vocals stay in front as it turns; off until
 // switched on, and at once.
 #define SGKeySingSpatial @"spotifyglass.sing.spatial"
+// Spatial voice's sound: how far ahead the voice is (meters, 1.5 until set), how much of it is the room (percent, 25
+// until set), how long a head that stays turned takes to bring it back in front (seconds, 5 until set), and how wide
+// the instruments spread (percent, 110 until set).
+#define SGKeySingSpatialDistance @"spotifyglass.sing.spatial.distance"
+#define SGKeySingSpatialRoom @"spotifyglass.sing.spatial.room"
+#define SGKeySingSpatialFront @"spotifyglass.sing.spatial.front"
+#define SGKeySingSpatialWidth @"spotifyglass.sing.spatial.width"
 
 // Posted on the main thread whenever what Sing is doing, or its model's download, changes.
 extern NSString *const SGSingChangedNotification;
@@ -98,6 +108,13 @@ BOOL SGSingSpatialAvailable(void);
 BOOL SGSingSpatial(void);
 // Stored, the motion's permission asked for when it goes on, and applied at once.
 void SGSetSingSpatial(BOOL on);
+// Distance, Room, Back in front and Instruments width: read as stored, and stored and applied at once. Any thread for
+// the getters.
+double SGSingSpatialDistance(void);
+double SGSingSpatialRoom(void);
+double SGSingSpatialFront(void);
+double SGSingSpatialWidth(void);
+void SGSetSingSpatialSound(double meters, double roomPercent, double frontSeconds, double widthPercent);
 
 // The top of the Spatial voice page: listener and voice on a field of dots seen from behind the head, which
 // follows the head through HeadGestures' motion while it is on screen and the motion is allowed, and idles
@@ -157,3 +174,10 @@ void SGSingRemoveOldModel(void);
 NSArray<NSString *> *SGSingComputeUnitNames(void);
 // Whether this OS can load the model (iOS 18). Memory is checked as the model loads (SGSingLoader.m).
 BOOL SGSingOSSupported(void);
+
+// Spotify's position before Sing's lead correction, for discontinuity observation. Off render.
+double SGSingSourcePosition(SPTPlayerState *state);
+#if SG_DRIVER
+// Whether the most recent stage call entered Sing's engine, rather than passing straight through.
+BOOL SGSingAnchorStageActive(void);
+#endif
