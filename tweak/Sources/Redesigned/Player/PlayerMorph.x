@@ -286,6 +286,7 @@ static SGRPlayerMorph *morphFor(SPTBarOverlayPresentationTransition *transition,
 // has the player and morphs to match, so Spotify's frame, alpha and completion stay its own. It is let go once the
 // transition is no longer interactive and the player has no animation left and holds still a few frames.
 static const CFTimeInterval kGiveUp = 0.9;   // UIKit's presentation runs about 0.5 s
+static const float kCloseSpeed = 1.5;         // how much faster than Spotify's a close it runs on its own plays
 
 @interface SGRMorphFollower : NSObject
 @property (nonatomic, strong) SGRPlayerMorph *morph;
@@ -295,7 +296,17 @@ static const CFTimeInterval kGiveUp = 0.9;   // UIKit's presentation runs about 
 @property (nonatomic) NSInteger still;
 @property (nonatomic) CGFloat lastY;
 @property (nonatomic) CFTimeInterval settledSince;   // when it was last driven by a finger, or began
+@property (nonatomic) BOOL sped;                     // the container's layer runs at kCloseSpeed until let go
+@property (nonatomic) BOOL closing, wasInteractive;
 @end
+
+// The container's clock runs at kCloseSpeed from now on, continuing from where its animations are.
+static void runFaster(CALayer *layer) {
+    CFTimeInterval now = CACurrentMediaTime(), local = [layer convertTime:now fromLayer:nil];
+    layer.speed = kCloseSpeed;
+    layer.beginTime = layer.superlayer ? [layer.superlayer convertTime:now fromLayer:nil] : now;
+    layer.timeOffset = local;
+}
 
 @implementation SGRMorphFollower
 - (void)tick:(CADisplayLink *)link {
@@ -308,6 +319,12 @@ static const CFTimeInterval kGiveUp = 0.9;   // UIKit's presentation runs about 
     CGFloat y = drawn.frame.origin.y, rest = self.morph.restY > 0 ? self.morph.restY : container.bounds.size.height;
     [self.morph apply:rest > 0 ? MIN(1, MAX(0, 1 - y / rest)) : 1];
     BOOL interactive = self.context.isInteractive;
+    // A close dragged by a finger runs faster from the moment it is let go.
+    if (self.closing && self.wasInteractive && !interactive && !self.sped) {
+        runFaster(container.layer);
+        self.sped = YES;
+    }
+    self.wasInteractive = interactive;
     BOOL moving = overlay.layer.animationKeys.count > 0 || fabs(y - self.lastY) > 0.5 || interactive;
     self.lastY = y;
     self.still = moving ? 0 : self.still + 1;
@@ -323,6 +340,12 @@ static const CFTimeInterval kGiveUp = 0.9;   // UIKit's presentation runs about 
     if (logged++ < 3) SGLog(@"player morph: let go after %.2f s, %@", CACurrentMediaTime() - self.settledSince, self.still >= 3 ? @"settled" : @"given up");
     [self.link invalidate];
     self.link = nil;
+    if (self.sped) {
+        CALayer *layer = self.container.layer;
+        layer.speed = 1;
+        layer.beginTime = 0;
+        layer.timeOffset = 0;
+    }
     [self.morph tearDown];
     self.morph = nil;
 }
@@ -354,6 +377,14 @@ static void followTransition(id transition, id<UIViewControllerContextTransition
     follower.overlay = overlay;
     follower.context = context;
     follower.lastY = CGFLOAT_MAX;
+    // A close plays faster: its slide, its stand-ins and so the morph that follows them. One Spotify runs on its own
+    // from the start, one dragged by a finger from when it is let go (tick:).
+    follower.closing = !to.isBeingPresented;
+    follower.wasInteractive = context.isInteractive;
+    if (follower.closing && !context.isInteractive) {
+        runFaster(container.layer);
+        follower.sped = YES;
+    }
     follower.link = [CADisplayLink displayLinkWithTarget:follower selector:@selector(tick:)];
     follower.link.preferredFrameRateRange = CAFrameRateRangeMake(80, 120, 120);
     [follower.link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
